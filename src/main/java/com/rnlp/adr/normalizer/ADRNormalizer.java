@@ -3,34 +3,37 @@ package com.rnlp.adr.normalizer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import octopus.semantic.similarity.HybridBAMSR;
+import pitt.search.semanticvectors.vectors.Vector;
 import rainbownlp.analyzer.evaluation.classification.Evaluator;
 import rainbownlp.core.Phrase;
-import rainbownlp.core.PhraseLink;
 import rainbownlp.machinelearning.MLExample;
 import rainbownlp.util.FileUtil;
 import rainbownlp.util.HibernateUtil;
 
 public class ADRNormalizer {
+	private static final Double MIN_SIMILARITY = 0.0;
 	static HashMap<String, List<String>> conceptVariations = new HashMap<String,List<String>>();
 	static HashMap<String, String> conceptNameToId = new HashMap<String,String>();
-	
+	static Set<String> annotatedConcepts = new HashSet<String>();
 	
 	public static void main(String[] args) throws Exception{
 		HibernateUtil.initialize("hibernate-oss.cfg.xml");
 		loadConcepts(args[0]);
 		List<MLExample> trainExamples = loadTrainingSet(args[1]);
+//		System.out.println(annotatedConcepts);
+//		System.out.println(annotatedConcepts.size());
 		predictConcepts(trainExamples);
 		Evaluator.getEvaluationResult(trainExamples).printResult();
 	}
-	static HybridBAMSR bamsr = new HybridBAMSR();
 	
 	private static void predictConcepts(List<MLExample> trainExamples) throws Exception {
 		UMLSManager umlManager = new UMLSManager();
-		bamsr.modelName = "testmodel_UMNSRS_REL";
-		bamsr.modelFile = "/tmp/SVMMultiClass-train-testmodel_UMNSRS_REL-1-2-3-4-5-6-7-8-9.model";
+		ConceptSemanticSimilarity conceptSim = new ConceptSemanticSimilarity();
 		for(MLExample ex : trainExamples){
 			String phraseContent = ex.getRelatedPhrase().getPhraseContent();
 			//exact match
@@ -42,15 +45,37 @@ public class ADRNormalizer {
 				conceptId = conceptNameToId.get(normalizedContent);
 			}
 			
+//			if(conceptId==null){
+//				List<String> combinations = getWordsCombinations(phraseContent.split(" "));
+//				for(String comb: combinations){
+//					conceptId = conceptNameToId.get(comb);
+//					if(conceptId!=null) break;
+//				}
+//				
+//			}
+			
 			//semantic match
 			if(conceptId==null){
-				conceptId = umlManager.getMostSimilarConcept(ex.getRelatedPhrase(), bamsr, null, null);
-			}else
-				ex.setPredictedClass(conceptId);
+				conceptId = conceptSim.getMostSimilartConcepts(phraseContent, MIN_SIMILARITY);
+//				
+//				List<String> parents = new ArrayList<String>();
+//				HybridBAMSR bamsr = new HybridBAMSR();
+//				bamsr.modelName = "testmodel_UMNSRS_REL";
+//				bamsr.modelFile = "/tmp/SVMMultiClass-train-testmodel_UMNSRS_REL-1-2-3-4-5-6-7-8-9.model";
+//				conceptId = umlManager.getMostSimilarConcept(ex.getRelatedPhrase(), bamsr, null, parents );
+//				System.out.println("Parents: "+parents);
+			}
 			
+			ex.setPredictedClass(conceptId);
 		}
 	}
 	
+//	private static List<String> getWordsCombinations(List<String> combs, String[] words) {
+//		List<String> combs = new ArrayList<String>();
+//		for()
+//		return combs;
+//	}
+
 	private static String normalizePhrase(String phraseContent) {
 		StringBuilder normalized = new StringBuilder();
 		char pre = ' ';
@@ -69,6 +94,7 @@ public class ADRNormalizer {
 			String[] parts = annotation.split("\t");
 			String type = parts[3];
 			String conceptID = parts[4];
+//			annotatedConcepts.add(conceptID);
 			String text = parts[5];
 			MLExample example = new MLExample();
 			example.setExpectedClass(conceptID);

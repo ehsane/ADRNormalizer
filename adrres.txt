@@ -1,0 +1,38 @@
+Exact match
+
+TP : 338
+FP : 27
+TN : 532653
+FN : 1206
+Precision : 92.6
+Recall : 21.89
+FValue : 35.41
+
+exact match+char repition normalized
+==================
+Micro-average :
+==================
+
+TP : 342
+FP : 30
+TN : 532650
+FN : 1202
+Precision : 91.94
+Recall : 22.15
+FValue : 35.7
+==================
+
++LSA Pubmed Systematic Review Top 1
+==================
+Micro-average :
+==================
+
+TP : 513
+FP : 362
+TN : 532318
+FN : 1031
+Precision : 58.63
+Recall : 33.23
+FValue : 42.42
+==================
+

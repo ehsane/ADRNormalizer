@@ -53,7 +53,14 @@ public class UMLSManager {
 	static Set<String> adrConceptsSet = new HashSet<String>();
 	
 	public static void main(String[] args) throws Exception{
-//		createIsaFile();
+		createIsaFile();
+		
+		adrUMLSConcepts =  new DefaultDirectedGraph<String, DefaultEdge>(DefaultEdge.class);
+		List<String> adrConcepts = FileUtil.loadLineByLine(ADR_CONCEPTS_FILE_PATH);
+		for(String adrCLine : adrConcepts){
+			adrConceptsSet.add(adrCLine.split("\t")[0].toLowerCase());
+		}
+		
 		createGraph();
 		createDefinitions();
 		loadGraph();
@@ -113,46 +120,62 @@ public class UMLSManager {
 		}
 	}
 
-	public String getMostSimilarConcept(Phrase phrase, HybridBAMSR bamsr, Set<String> currentOptions, String parentNode){
+	public String getMostSimilarConcept(Phrase phrase, HybridBAMSR bamsr, Set<String> currentOptions, List<String> parents){
 		if(currentOptions==null)
 			currentOptions = rootNodes;
 		if(currentOptions.isEmpty())
-			return parentNode;
+			return parents.get(parents.size()-1);
 		
 		String mostSimilarConceptId = null;
-		Double bestSum = 0.0;
+		Double bestMax = 0.0;
 		try {
-			for(String umlsConceptId: currentOptions){
-				List<String> defs = adrUMLSConceptsDefinition.get(umlsConceptId);
-//				List<String> defs = getDefinitions(umlsConceptId);
-				if(defs==null){
-					System.out.println("ERROR: no definition for: "+umlsConceptId);
-					continue;
+			if(currentOptions.size()==1){
+				mostSimilarConceptId = currentOptions.iterator().next();
+			}else{
+				List<MLExample> testExamples = new ArrayList<MLExample>();
+				for(String umlsConceptId: currentOptions){
+					List<String> defs = adrUMLSConceptsDefinition.get(umlsConceptId);
+					//				List<String> defs = getDefinitions(umlsConceptId);
+					if(defs==null){
+						System.out.println("ERROR: no definition for: "+umlsConceptId);
+						continue;
+					}
+					List<SimpleEntry<Double, SimpleEntry<String, String>>> exampleEntries = new ArrayList<SimpleEntry<Double,SimpleEntry<String,String>>>();
+					for(String def: defs){
+						SimpleEntry<String, String> conceptsPair = new SimpleEntry<String, String>(phrase.getPhraseContent(), def);
+						SimpleEntry<Double, SimpleEntry<String, String>> expectedValuePair = new SimpleEntry<Double, SimpleEntry<String,String>>(0.0, conceptsPair);
+						exampleEntries.add(expectedValuePair);
+					}
+					List<MLExample> curConceptExamples = bamsr.createRegressionExamples(exampleEntries, "UMLS_ADR");;
+					for(MLExample example: curConceptExamples){
+							example.setPredictedClassOptionalCategory(umlsConceptId);
+							testExamples.add(example);
+						}	
 				}
-				List<SimpleEntry<Double, SimpleEntry<String, String>>> exampleEntries = new ArrayList<SimpleEntry<Double,SimpleEntry<String,String>>>();
-				for(String def: defs){
-					SimpleEntry<String, String> conceptsPair = new SimpleEntry<String, String>(phrase.getPhraseContent(), def);
-					SimpleEntry<Double, SimpleEntry<String, String>> expectedValuePair = new SimpleEntry<Double, SimpleEntry<String,String>>(0.0, conceptsPair);
-					exampleEntries.add(expectedValuePair);
-				}
-				List<MLExample> curConceptExamples = bamsr.createRegressionExamples(exampleEntries, "UMLS_ADR");;
-				bamsr.test(curConceptExamples);
-				Double simSum = 0.0;
-				for(MLExample example: curConceptExamples){
-					simSum += Double.valueOf(example.getPredictedClass()); 
-				}
-				if(simSum>bestSum){
-					mostSimilarConceptId = umlsConceptId;
-					bestSum = simSum;
+				
+				bamsr.test(testExamples);
+				for(MLExample example: testExamples){
+					if(example.getPredictedClass()!=null){
+						Double s = Double.valueOf(example.getPredictedClass());
+						if(s>bestMax){
+							mostSimilarConceptId = example.getPredictedClassOptionalCategory();
+							bestMax = s;
+						}
+					}else
+						System.out.println("Predicted value is null:"+example.getExampleId());
+					
 				}
 			}
-			
+
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
-		String mostSimilarInChildren = getMostSimilarConcept(phrase, bamsr, getChilds(mostSimilarConceptId), mostSimilarConceptId);
+		}if(mostSimilarConceptId==null) return null;
+		if(parents.contains(mostSimilarConceptId)) return mostSimilarConceptId;
+		parents.add(mostSimilarConceptId);
+		String mostSimilarInChildren = getMostSimilarConcept(phrase, bamsr, getChilds(mostSimilarConceptId), parents);
 		// altId is umls concept id
+		System.out.println("Phrase:"+phrase.getPhraseContent()+" -> "+mostSimilarConceptId);
 		return mostSimilarInChildren;
 	}
 	private Set<String> getChilds(String conceptId) {
@@ -238,11 +261,6 @@ public class UMLSManager {
 		br1.close();
 	}
 	private static void createGraph() throws IOException, TransformerConfigurationException, SAXException {
-		adrUMLSConcepts =  new DefaultDirectedGraph<String, DefaultEdge>(DefaultEdge.class);
-		List<String> adrConcepts = FileUtil.loadLineByLine(ADR_CONCEPTS_FILE_PATH);
-		for(String adrCLine : adrConcepts){
-			adrConceptsSet.add(adrCLine.split("\t")[0].toLowerCase());
-		}
 		BufferedReader br1 = new BufferedReader(
 				new FileReader(new File(ISA_RELATION_FILE_PATH)));
 		int counter = 0;
@@ -264,12 +282,16 @@ public class UMLSManager {
 			System.out.println("line processed: "+counter);
 		}
 		br1.close();
-		OutputStream buffer = new BufferedOutputStream(new FileOutputStream(GRAPH_FILE_PATH));
-	    ObjectOutput output = new ObjectOutputStream(buffer);
-	    output.writeObject(adrUMLSConcepts);
-	    output.flush();
-	    output.close();
-	    System.out.println("Graph created:"+GRAPH_FILE_PATH);
+		if(counter>0){
+			createGraph();//repeat until there is no new link to add
+		}else{
+			OutputStream buffer = new BufferedOutputStream(new FileOutputStream(GRAPH_FILE_PATH));
+		    ObjectOutput output = new ObjectOutputStream(buffer);
+		    output.writeObject(adrUMLSConcepts);
+		    output.flush();
+		    output.close();
+		    System.out.println("Graph created:"+GRAPH_FILE_PATH);
+		}
 	    
 	}
 	private static void createIsaFile() {
@@ -305,15 +327,17 @@ public class UMLSManager {
 					else
 						lastToConcept = toConceptId;
 					if(relation.equals("isa") || relation.equals("chd") 
-							|| relation.equals("mapped_to") || relation.equals("mapped_from")
-							|| relation.equals("classified_as"))
+//							|| relation.equals("mapped_to") || relation.equals("mapped_from")
+//							|| relation.equals("classified_as")
+							)
 						bw.write(toConceptId+"\t"+fromConceptId+"\n");
 					else if(relation.equals("par")
-							|| relation.equals("classifies"))
+//							|| relation.equals("classifies")
+							)
 						bw.write(fromConceptId+"\t"+toConceptId+"\n");
-					else if(relationCode.equals("rq") || relationCode.equals("sib")){
-						bw.write(toConceptId+"\t"+fromConceptId+"\n");
-					}
+//					else if(relationCode.equals("rq") || relationCode.equals("sib")){
+//						bw.write(toConceptId+"\t"+fromConceptId+"\n");
+//					}
 				}else{
 					System.out.println("Line doesn't match: "+line);
 				}
