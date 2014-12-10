@@ -120,6 +120,56 @@ public class UMLSManager {
 		}
 	}
 
+	public String getMostSimilarConceptNoRrecursive(Phrase phrase, HybridBAMSR bamsr, List<String> currentOptions){
+		String mostSimilarConceptId = null;
+		Double bestMax = 0.0;
+		try {
+			if(currentOptions.size()==1){
+				mostSimilarConceptId = currentOptions.iterator().next();
+			}else{
+				List<MLExample> testExamples = new ArrayList<MLExample>();
+				for(String umlsConceptId: currentOptions){
+					if(umlsConceptId==null) continue;
+					List<String> defs = adrUMLSConceptsDefinition.get(umlsConceptId);
+					//				List<String> defs = getDefinitions(umlsConceptId);
+					if(defs==null){
+						System.out.println("ERROR: no definition for: "+umlsConceptId);
+						continue;
+					}
+					List<SimpleEntry<Double, SimpleEntry<String, String>>> exampleEntries = new ArrayList<SimpleEntry<Double,SimpleEntry<String,String>>>();
+					for(String def: defs){
+						SimpleEntry<String, String> conceptsPair = new SimpleEntry<String, String>(phrase.getPhraseContent(), def);
+						SimpleEntry<Double, SimpleEntry<String, String>> expectedValuePair = new SimpleEntry<Double, SimpleEntry<String,String>>(0.0, conceptsPair);
+						exampleEntries.add(expectedValuePair);
+					}
+					List<MLExample> curConceptExamples = bamsr.createRegressionExamples(exampleEntries, "UMLS_ADR");;
+					for(MLExample example: curConceptExamples){
+							example.setPredictedClassOptionalCategory(umlsConceptId);
+							testExamples.add(example);
+						}	
+				}
+				if(testExamples.isEmpty()) return null;
+				bamsr.test(testExamples);
+				for(MLExample example: testExamples){
+					if(example.getPredictedClass()!=null){
+						Double s = Double.valueOf(example.getPredictedClass());
+						if(s>bestMax){
+							mostSimilarConceptId = example.getPredictedClassOptionalCategory();
+							bestMax = s;
+						}
+					}else
+						System.out.println("Predicted value is null:"+example.getExampleId());
+					
+				}
+			}
+
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return mostSimilarConceptId;
+	}
 	public String getMostSimilarConcept(Phrase phrase, HybridBAMSR bamsr, Set<String> currentOptions, List<String> parents){
 		if(currentOptions==null)
 			currentOptions = rootNodes;

@@ -36,3 +36,58 @@ Recall : 33.23
 FValue : 42.42
 ==================
 
+LSA top 5 random one
+Micro-average :
+==================
+
+TP : 297
+FP : 41
+TN : 541903
+FN : 1247
+Precision : 87.87
+Recall : 19.24
+FValue : 31.57
+==================
+
+LSA top (predicted as class)
+==================
+Micro-average :
+==================
+
+TP : 297
+FP : 1247
+TN : 542241
+FN : 1247
+Precision : 19.24
+Recall : 19.24
+FValue : 19.24
+==================
+
+LSA top 2 + bamsr (predicted as class)
+==================
+Micro-average :
+==================
+
+TP : 500
+FP : 1023
+TN : 940817
+FN : 1044
+Precision : 32.83
+Recall : 32.38
+FValue : 32.6
+==================
+
+LSA top 2 + bamsr (expected as class)
+==================
+Micro-average :
+==================
+
+TP : 524
+FP : 240
+TN : 532440
+FN : 1020
+Precision : 68.59
+Recall : 33.94
+FValue : 45.41
+==================
+

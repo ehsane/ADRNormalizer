@@ -5,10 +5,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import octopus.semantic.similarity.HybridBAMSR;
-import pitt.search.semanticvectors.vectors.Vector;
 import rainbownlp.analyzer.evaluation.classification.Evaluator;
 import rainbownlp.core.Phrase;
 import rainbownlp.machinelearning.MLExample;
@@ -34,6 +34,7 @@ public class ADRNormalizer {
 	private static void predictConcepts(List<MLExample> trainExamples) throws Exception {
 		UMLSManager umlManager = new UMLSManager();
 		ConceptSemanticSimilarity conceptSim = new ConceptSemanticSimilarity();
+		int counter = 0;
 		for(MLExample ex : trainExamples){
 			String phraseContent = ex.getRelatedPhrase().getPhraseContent();
 			//exact match
@@ -56,17 +57,24 @@ public class ADRNormalizer {
 			
 			//semantic match
 			if(conceptId==null){
-				conceptId = conceptSim.getMostSimilartConcepts(phraseContent, MIN_SIMILARITY);
+//				conceptId = conceptSim.getMostSimilartConcepts(phraseContent, MIN_SIMILARITY);
+				int N = 2;
+				List<String> concepts = conceptSim.getNMostSimilartConcepts(phraseContent, MIN_SIMILARITY, N);
+//				Random r = new Random();
+//				conceptId = concepts.get(r.nextInt(N));
 //				
 //				List<String> parents = new ArrayList<String>();
-//				HybridBAMSR bamsr = new HybridBAMSR();
-//				bamsr.modelName = "testmodel_UMNSRS_REL";
-//				bamsr.modelFile = "/tmp/SVMMultiClass-train-testmodel_UMNSRS_REL-1-2-3-4-5-6-7-8-9.model";
+				HybridBAMSR bamsr = new HybridBAMSR();
+				bamsr.modelName = "testmodel_UMNSRS_REL";
+				bamsr.modelFile = "/tmp/SVMMultiClass-train-testmodel_UMNSRS_REL-1-2-3-4-5-6-7-8-9.model";
+				conceptId = umlManager.getMostSimilarConceptNoRrecursive(ex.getRelatedPhrase(), bamsr, concepts );
 //				conceptId = umlManager.getMostSimilarConcept(ex.getRelatedPhrase(), bamsr, null, parents );
 //				System.out.println("Parents: "+parents);
 			}
 			
 			ex.setPredictedClass(conceptId);
+			counter++;
+			System.out.println("Processed "+counter+" /"+trainExamples.size());
 		}
 	}
 	

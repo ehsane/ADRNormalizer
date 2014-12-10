@@ -1,0 +1,4 @@
+log4j.rootLogger=OFF
+log4j.logger.org.hibernate=OFF
+org.hibernate.cache=OFF 
+net.sf.ehcache=OFF
